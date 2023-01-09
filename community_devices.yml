@@ -1,7 +1,7 @@
 # This file has been generated automatically by droidian-new-device
 
-# xiaomi angelica and dandelion
-xiaomi_garden:
+# xiaomi_dandelion
+xiaomi_dandelion:
   type: image
   arch: armhf
   edition: phosh
