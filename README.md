@@ -1,4 +1,4 @@
-Droidian on Xiaomi Redmi 7 (onclite)
+Droidian on Xiaomi Redmi 9A (dandelion)
 ========
 
 Droidian is a GNU/Linux distribution based on top of Mobian, a Debian-based distribution for mobile devices. The goal of Droidian is to be able to run Mobian on Android phones.
@@ -8,7 +8,7 @@ Droidian is a GNU/Linux distribution based on top of Mobian, a Debian-based dist
 # Default password: 1234
 
 ## Installation
- * Download the latest build here: https://github.com/droidian-onclite/droidian-images/releases
+ * Download the latest build here: https://github.com/droidian-mt6765/droidian-images-dandelion/releases
  * Unpack the zip file
  * Run the flash_all.sh script:
     <pre><code>./flash_all.sh/code></pre>
@@ -17,3 +17,6 @@ Droidian is a GNU/Linux distribution based on top of Mobian, a Debian-based dist
 
 ## Bugs and workarounds
 * Brightness is currently only adjustable via the applet on the appdrawer
+* Bluetooth can be used via the terminal using bluetoothctl command or using blueman: sudo apt install blueman but does not work via the settings app.
+* Signal strengh is reported at 1% but Mobile data and calls work just fine.
+* When a headphone is plugged in it must be changed to be used manually in the settings.
