@@ -13,3 +13,4 @@ xiaomi_dandelion:
     - adaptation-droidian-garden
     - adaptation-garden-configs
     - droidian-sysfs-torch
+    - qtwayland5
