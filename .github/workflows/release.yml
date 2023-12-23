@@ -7,7 +7,7 @@ on:
     - cron: "59 23 * * *"
 
 jobs:
-  once:
+  generate-matrix:
     runs-on: ubuntu-20.04
     name: Generate matrix
     outputs:
@@ -25,46 +25,37 @@ jobs:
 
   build:
     runs-on: ubuntu-20.04
-    needs: once
+    needs: generate-matrix
 
     strategy:
       fail-fast: true
       matrix:
-        config: ${{ fromJson(needs.once.outputs.matrix) }}
+        config: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
 
     name: ${{ matrix.config.job_name }}
 
     steps:
-      - name: Get current date
-        run: echo "current_date=$(date +'%Y%m%d')" >> $GITHUB_ENV
+      - name: Set environment variables
+        run: |
+          echo "current_date=$(date +'%Y%m%d')" >> $GITHUB_ENV
+          echo "release_suffix=_${{ env.current_date }}" >> $GITHUB_ENV
+          if [[ "${{ github.ref }}" == 'refs/tags/droidian'* ]]; then
+            echo "DROIDIAN_VERSION=$(echo ${{ github.ref }} | rev | cut -d'/' -f1 | rev)" >> $GITHUB_ENV
+          else
+            echo "DROIDIAN_VERSION=nightly" >> $GITHUB_ENV
+          fi
+          echo "DROIDIAN_IDENTIFIER=${{ matrix.config.product }}-${{ matrix.config.arch }}-${{ matrix.config.edition }}-${{ matrix.config.variant }}-${{ matrix.config.apilevel }}" >> $GITHUB_ENV
 
-      - name: Set suffix
-        run: echo "release_suffix=_${{ env.current_date }}" >> $GITHUB_ENV
-
-      - name: Set nightly version
-        if: startsWith(github.ref, 'refs/tags/droidian') != true
-        run: echo "DROIDIAN_VERSION=nightly" >> $GITHUB_ENV
-
-      - name: Set version
-        if: startsWith(github.ref, 'refs/tags/droidian') == true
-        run: echo "DROIDIAN_VERSION=$(echo ${{ github.ref }} | rev | cut -d'/' -f1 | rev)" >> $GITHUB_ENV
-
-      - name: Set identifier
-        run: echo "DROIDIAN_IDENTIFIER=${{ matrix.config.product }}-${{ matrix.config.arch }}-${{ matrix.config.edition }}-${{ matrix.config.variant }}-${{ matrix.config.apilevel }}" >> $GITHUB_ENV
-
-      - name: Checkout
+      - name: Checkout code and submodules
         uses: actions/checkout@v2
         with:
           lfs: 'true'
           submodules: 'recursive'
 
-      - name: Checkout submodules
-        run: git submodule update --init --recursive
-
       - name: QEMU set-up
         uses: docker/setup-qemu-action@v1
 
-      - name: Create build dir
+      - name: Create build directory
         run: mkdir -p /tmp/buildd-results
 
       - name: Pull container
@@ -90,101 +81,22 @@ jobs:
     name: Create GitHub release
     needs: build
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}${{ steps.create_nightly.outputs.upload_url }}
+      upload_url: ${{ needs.build.outputs.upload_url }}
 
     steps:
-      - name: Delete old nightly release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.1
-        if: startsWith(github.ref, 'refs/tags/droidian') != true
-        with:
-          delete_release: true # default: false
-          tag_name: nightly # tag name to delete
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Delete old ubports-installer release
-        uses: dev-drprasad/delete-tag-and-release@v0.2.1
-        if: startsWith(github.ref, 'refs/tags/droidian') != true
-        with:
-          delete_release: true # default: false
-          tag_name: ubports-installer  # tag name to delete
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Tag snapshot
-        if: startsWith(github.ref, 'refs/tags/droidian') != true
-        uses: tvdias/github-tagger@v0.0.1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          tag: nightly
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          path: droidian-out
-
-      - name: Create SHA256SUMS
+      - name: Reuse build's environment variables
         run: |
-          cd droidian-out
-          for x in droidian-out-*; do
-            cd $x
-            sha256sum * >> ../SHA256SUMS
-            cd ..
-          done
-
-      - name: Create nightly release
-        id: create_nightly
-        if: startsWith(github.ref, 'refs/tags/droidian') != true
-        uses: softprops/action-gh-release@v1
-        with:
-          files: droidian-out/SHA256SUMS
-          tag_name: nightly
-          draft: false
-          prerelease: true
-
-  publish_ubports:
-    runs-on: ubuntu-20.04
-    needs: [once, prepare, publish]
-    strategy:
-      fail-fast: false
-      matrix:
-        config: ${{ fromJson(needs.once.outputs.matrix) }}
-
-    name: Publish ${{ matrix.config.job_name }} for UBports installer
-
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: droidian-out-${{ matrix.config.product }}-${{ matrix.config.arch }}-${{ matrix.config.edition }}-${{ matrix.config.variant }}-${{ matrix.config.apilevel }}
-          path: droidian-ubports-installer
-
-      - name: Prepare ubports installer img files
-        run: |
-          mv droidian-ubports-installer/droidian-UNOFFICIAL*.zip droidian-ubports-installer/droidian-UNOFFICIAL_${{ matrix.config.product }}-${{ matrix.config.arch }}-${{ matrix.config.edition }}-${{ matrix.config.variant }}-${{ matrix.config.apilevel }}.zip
-
-      - name: Create ubports installer release
-        id: create_nightly
-        if: startsWith(github.ref, 'refs/tags/droidian') != true
-        uses: svenstaro/upload-release-action@2.3.0
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ubports-installer
-          file: droidian-ubports-installer/*.zip
-          file_glob: true
-          prerelease: true
+          echo "current_date=$(date +'%Y%m%d')" >> $GITHUB_ENV
+          echo "release_suffix=_${{ env.current_date }}" >> $GITHUB_ENV
+          if [[ "${{ github.ref }}" == 'refs/tags/droidian'* ]]; then
+            echo "DROIDIAN_VERSION=$(echo ${{ github.ref }} | rev | cut -d'/' -f1 | rev)" >> $GITHUB_ENV
+          else
+            echo "DROIDIAN_VERSION=nightly" >> $GITHUB_ENV
+          fi
+          echo "DROIDIAN_IDENTIFIER=${{ matrix.config.product }}-${{ matrix.config.arch }}-${{ matrix.config.edition }}-${{ matrix.config.variant }}-${{ matrix.config.apilevel }}" >> $GITHUB_ENV
 
   publish:
     runs-on: ubuntu-20.04
-    needs: [once, prepare]
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}${{ steps.create_nightly.outputs.upload_url }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        config: ${{ fromJson(needs.once.outputs.matrix) }}
-
     name: Publish ${{ matrix.config.job_name }}
 
     steps:
@@ -195,7 +107,6 @@ jobs:
           path: droidian-out
 
       - name: Create nightly release
-        id: create_nightly
         if: startsWith(github.ref, 'refs/tags/droidian') != true
         uses: softprops/action-gh-release@v1
         with:
