@@ -30,6 +30,7 @@ jobs:
       matrix:
         config: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
     name: ${{ matrix.config.job_name }}
+    
     steps:
       - name: Set environment variables
         run: |
